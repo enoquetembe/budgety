@@ -16,6 +16,19 @@ const budgetController = (function () {
     }
 
 
+    //Calculate total incomes and expense and sum the total of expense or income
+    const calculateTotal = function(type) {
+        sum = 0
+
+        data.allItems[type].forEach(function(current) {
+            sum += current.value
+        })
+
+        data.totals[type] = sum
+
+        
+    }
+
     /* Data structure to store all about expenses and incoms */
     const data = {
         
@@ -26,12 +39,16 @@ const budgetController = (function () {
         },
 
         totals: {
-            expense :  0,
-            income: 0
-        }
+            exp :  0,
+            inc: 0
+        },
+
+        budget: 0,
+        percentage: -1
 
     }
 
+  
     return {
 
         addItem: function(type, desc, val ) {
@@ -59,6 +76,38 @@ const budgetController = (function () {
 
             return newItem
         }, 
+
+        //calculate the budget
+        calculateBudget: function() {
+            //1.calculate total incomes and expenses
+            calculateTotal('exp')
+            calculateTotal('inc')
+
+            //2. calculate budget(income - expense)
+            data.budget = data.totals.inc - data.totals.exp
+
+            //3. calculate percentage(since we can't divide by zero we have to verify if the totla incomes is greater than zero)
+            if(data.totals.inc > 0) {
+                data.percentage = Math.round((data.totals.exp/data.totals.inc)  * 100)
+            }else {
+                data.percentage = -1
+            }
+
+        },
+
+
+        /*
+        *@returns {Object}  
+        */
+        getBudget: function() {
+            return {
+                budget: data.budget,
+                totalIncome: data.totals.inc,
+                totalExpense: data.totals.exp,
+                percentage: data.percentage
+            }
+        },
+
          test: function() {
             console.log(data)
          }
@@ -83,7 +132,7 @@ const UIController = (function () {
             return {
                 budgetType: document.querySelector('.add-type').value, //will be either inc or exp
                 budgetDescription: document.querySelector('.add-description').value,
-                budgetValue: document.querySelector('.add-value').value
+                budgetValue: parseFloat(document.querySelector('.add-value').value)
             }
         },
 
@@ -98,7 +147,7 @@ const UIController = (function () {
             if(type === 'inc') {
                 element = document.querySelector('.income-list')
 
-                html = '<div class="item clearfix" id="income-%id%"><div class="item-description">%description%</div><div class="right clearfix"><div class="item-value">%value%</div><div class="item-delete"><button class="item__delete--btn"><i class="ion-ios-clos-outline"></i></button></div></div> </div> '
+                html =  '<div class="item clearfix" id="income-%id%"> <div class="item-description">%description%</div> <div class="right clearfix"> <div class="item-value">%value%</div> <div class="item-delete"> <button class="item-delete-btn"><i class="ion-ios-close-outline"></i></button> </div> </div> </div> '
 
             } else if(type==='exp') {
                 element = document.querySelector('.expenses-list')
@@ -125,11 +174,25 @@ const UIController = (function () {
             const fieldsArray = Array.prototype.slice.call(fields)
 
             //clear the current value from the input field
-            fieldsArray.forEach(function(current, index, array) {
+            fieldsArray.forEach(function(current) {
                 current.value = ''
             })
 
             fieldsArray[0].focus()
+        },
+        
+       
+        displayBudget: function(object) {
+
+            document.querySelector('.budget-value').textContent = object.budget
+            document.querySelector('.budget-income-value').textContent = object.totalIncome
+            document.querySelector('.budget-expenses-value').textContent = object.totalExpense
+            
+            if(object.percentage > 0) {
+                document.querySelector('.budget-expenses-percentage').textContent = object.percentage + '%'
+            } else {
+                document.querySelector('.budget-expenses-percentage').textContent = '...'
+            }
         }
     }
 
@@ -164,19 +227,42 @@ const controller = (function (budgetCtrl, UICtrl) {
     * function to add a item 
     */
     const controlAddItem = () => {
+
+        const updateBudget = () => {
+            //1. calculate the budget
+            budgetCtrl.calculateBudget()
+
+            //2.return the budget
+            const budget = budgetCtrl.getBudget()
+
+            //3. display the budget into the UI
+            UIController.displayBudget(budget)
+
+        }
+
         //1. Get the field input value
         const inputValues  =  UICtrl.getIpuntValue()
 
-        //2. Add the item to the budget controller
-        const newItem =  budgetCtrl.addItem(inputValues.budgetType, inputValues.budgetDescription, inputValues.budgetValue)
+        if(inputValues.budgetDescription !== '' && !isNaN(inputValues.budgetValue) && inputValues.budgetValue > 0 ) {
 
-        //3. Add the item to the UI
-        UIController.addListItem(newItem, inputValues.budgetType)  
-        UIController.clearFields()      
+            //2. Add the item to the budget controller
+            const newItem =  budgetCtrl.addItem(inputValues.budgetType, inputValues.budgetDescription, inputValues.budgetValue)
+
+            //3. Add the item to the UI
+            UIController.addListItem(newItem, inputValues.budgetType)  
+            UIController.clearFields()      
+            
+            //4. Calculate and the budget
+            updateBudget()
+
+            //5. Display the item on the UI     
+            
+
+        }else {
+            alert('Please fill all fields')
+        }
+
         
-        //4. Calculate the budget
-
-        //5. Display the item on the UI
          
     }
 
@@ -186,6 +272,12 @@ const controller = (function (budgetCtrl, UICtrl) {
         // initialize the app
         init: function() {
             setupEventLinsteners()
+            UIController.displayBudget({
+                budget: 0,
+                totalIncome: 0,
+                totalExpense: 0,
+                percentage: -1
+            })
         }
     }
 
